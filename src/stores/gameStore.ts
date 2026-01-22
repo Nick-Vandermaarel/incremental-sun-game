@@ -79,9 +79,24 @@ export const useGameStore = defineStore('game', () => {
     return Math.floor((generator.baseCost || 10) * Math.pow(1.15, generator.owned || 0));
   }
 
+  function getGeneratorCostForAmount(generator: Generator, amount: number): number {
+    if (!generator || amount <= 0) return 0;
+    const owned = generator.owned || 0;
+    let totalCost = 0;
+    for (let i = 0; i < amount; i++) {
+      totalCost += Math.floor((generator.baseCost || 10) * Math.pow(1.15, owned + i));
+    }
+    return totalCost;
+  }
+
   function canAffordGenerator(generator: Generator): boolean {
     if (!generator) return false;
     return power.value >= getGeneratorCost(generator);
+  }
+
+  function canAffordGeneratorBulk(generator: Generator, amount: number): boolean {
+    if (!generator) return false;
+    return power.value >= getGeneratorCostForAmount(generator, amount);
   }
 
   function buyGenerator(id: string): boolean {
@@ -93,6 +108,21 @@ export const useGameStore = defineStore('game', () => {
 
     power.value -= cost;
     generator.owned = (generator.owned || 0) + 1;
+
+    checkUnlocks();
+    saveGame(gameState.value);
+    return true;
+  }
+
+  function buyGeneratorBulk(id: string, amount: number): boolean {
+    const generator = generators.value.find(g => g && g.id === id);
+    if (!generator || amount <= 0) return false;
+
+    const cost = getGeneratorCostForAmount(generator, amount);
+    if (power.value < cost) return false;
+
+    power.value -= cost;
+    generator.owned = (generator.owned || 0) + amount;
 
     checkUnlocks();
     saveGame(gameState.value);
@@ -219,9 +249,12 @@ export const useGameStore = defineStore('game', () => {
     quantumTapBonus,
     powerPerSecond,
     getGeneratorCost,
+    getGeneratorCostForAmount,
     getAppliedGeneratorMultiplier,
     canAffordGenerator,
+    canAffordGeneratorBulk,
     buyGenerator,
+    buyGeneratorBulk,
     canAffordUpgrade,
     buyUpgrade,
     clickSun,
