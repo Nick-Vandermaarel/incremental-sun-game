@@ -1,0 +1,25 @@
+{
+  "generators": [
+    { "id": "solar_array", "name": "Solar Array", "baseCost": 10, "baseOutput": 1, "unlocked": true },
+    { "id": "lunar_collector", "name": "Lunar Collector", "baseCost": 100, "baseOutput": 10, "unlocked": true },
+    { "id": "fusion_plant", "name": "Fusion Plant", "baseCost": 1000, "baseOutput": 80, "unlocked": true },
+    { "id": "asteroid_harvester", "name": "Asteroid Harvester", "baseCost": 10000, "baseOutput": 500, "unlocked": false },
+    { "id": "gas_giant_siphon", "name": "Gas Giant Siphon", "baseCost": 100000, "baseOutput": 3000, "unlocked": false },
+    { "id": "dyson_swarm", "name": "Dyson Swarm Node", "baseCost": 1000000, "baseOutput": 25000, "unlocked": false },
+    { "id": "dyson_sphere", "name": "Dyson Sphere", "baseCost": 100000000, "baseOutput": 300000, "unlocked": false }
+  ],
+  "upgrades": [
+    { "id": "focused_lens", "name": "Focused Lens", "description": "+5 Power per click", "cost": 100, "purchased": false, "type": "click", "effect": 5 },
+    { "id": "solar_concentrators", "name": "Solar Concentrators", "description": "+100% Power per click", "cost": 1000, "purchased": false, "type": "click", "multiplier": 2 },
+    { "id": "quantum_tap", "name": "Quantum Tap", "description": "Click gains 5% of Power/sec", "cost": 10000, "purchased": false, "type": "click", "effect": 0.05 },
+    { "id": "efficiency_1", "name": "Efficiency I", "description": "+50% output for Solar Array", "cost": 200, "purchased": false, "type": "generator", "generatorId": "solar_array", "multiplier": 1.5 },
+    { "id": "efficiency_2", "name": "Efficiency II", "description": "+100% output for Solar Array", "cost": 1000, "purchased": false, "type": "generator", "generatorId": "solar_array", "multiplier": 2 },
+    { "id": "efficiency_3", "name": "Efficiency III", "description": "+300% output for Solar Array", "cost": 5000, "purchased": false, "type": "generator", "generatorId": "solar_array", "multiplier": 4 },
+    { "id": "lunar_efficiency_1", "name": "Lunar Efficiency I", "description": "+50% output for Lunar Collector", "cost": 2000, "purchased": false, "type": "generator", "generatorId": "lunar_collector", "multiplier": 1.5 },
+    { "id": "lunar_efficiency_2", "name": "Lunar Efficiency II", "description": "+100% output for Lunar Collector", "cost": 10000, "purchased": false, "type": "generator", "generatorId": "lunar_collector", "multiplier": 2 },
+    { "id": "fusion_efficiency_1", "name": "Fusion Efficiency I", "description": "+50% output for Fusion Plant", "cost": 20000, "purchased": false, "type": "generator", "generatorId": "fusion_plant", "multiplier": 1.5 },
+    { "id": "fusion_efficiency_2", "name": "Fusion Efficiency II", "description": "+100% output for Fusion Plant", "cost": 100000, "purchased": false, "type": "generator", "generatorId": "fusion_plant", "multiplier": 2 },
+    { "id": "synergy", "name": "Synergy", "description": "Each generator type boosts others by 5%", "cost": 100000, "purchased": false, "type": "global", "multiplier": 1.05 },
+    { "id": "offline_progress", "name": "Offline Progress", "description": "Gain 100% of Power/sec while away (instead of 50%)", "cost": 25000, "purchased": false, "type": "global" }
+  ]
+}

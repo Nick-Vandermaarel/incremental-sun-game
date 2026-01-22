@@ -13,14 +13,7 @@ const store = useGameStore();
 const cost = computed(() => store.getGeneratorCost(props.generator));
 const canAfford = computed(() => store.canAffordGenerator(props.generator));
 const perGeneratorOutput = computed(() => {
-  let output = props.generator.baseOutput;
-  const efficiencyUpgrade = store.upgrades.find(
-    u => u.type === 'generator' && u.generatorId === props.generator.id && u.purchased
-  );
-  if (efficiencyUpgrade && efficiencyUpgrade.multiplier) {
-    output *= efficiencyUpgrade.multiplier;
-  }
-  return output;
+  return props.generator.baseOutput * store.getAppliedGeneratorMultiplier(props.generator.id);
 });
 const totalOutput = computed(() => perGeneratorOutput.value * props.generator.owned);
 

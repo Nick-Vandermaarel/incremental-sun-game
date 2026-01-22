@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "generators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "baseCost", "baseOutput", "unlocked"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "name": { "type": "string", "minLength": 1 },
+          "baseCost": { "type": "number", "minimum": 1 },
+          "baseOutput": { "type": "number", "minimum": 0 },
+          "unlocked": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "upgrades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "cost", "purchased", "type"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "cost": { "type": "number", "minimum": 0 },
+          "purchased": { "type": "boolean" },
+          "type": { "type": "string", "enum": ["click", "generator", "global"] },
+          "generatorId": { "type": "string" },
+          "effect": { "type": "number" },
+          "multiplier": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "generator" } } },
+            "then": { "required": ["generatorId", "multiplier"] }
+          }
+        ]
+      }
+    }
+  },
+  "required": ["generators", "upgrades"],
+  "additionalProperties": false
+}

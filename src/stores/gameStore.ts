@@ -2,140 +2,146 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { GameState, Generator, Upgrade } from '../types/game';
 import { saveGame, loadGame } from '../utils/saveLoad';
-
-const DEFAULT_GENERATORS: Generator[] = [
-  { id: 'solar_array', name: 'Solar Array', baseCost: 10, baseOutput: 0.1, owned: 0, unlocked: true },
-  { id: 'lunar_collector', name: 'Lunar Collector', baseCost: 100, baseOutput: 1, owned: 0, unlocked: true },
-  { id: 'fusion_plant', name: 'Fusion Plant', baseCost: 1000, baseOutput: 8, owned: 0, unlocked: true },
-  { id: 'asteroid_harvester', name: 'Asteroid Harvester', baseCost: 10000, baseOutput: 50, owned: 0, unlocked: false },
-  { id: 'gas_giant_siphon', name: 'Gas Giant Siphon', baseCost: 100000, baseOutput: 300, owned: 0, unlocked: false },
-  { id: 'dyson_swarm', name: 'Dyson Swarm Node', baseCost: 1000000, baseOutput: 2000, owned: 0, unlocked: false },
-  { id: 'dyson_sphere', name: 'Dyson Sphere', baseCost: 100000000, baseOutput: 20000, owned: 0, unlocked: false },
-];
-
-const DEFAULT_UPGRADES: Upgrade[] = [
-  { id: 'focused_lens', name: 'Focused Lens', description: '+1 Power per click', cost: 50, purchased: false, type: 'click', effect: 1 },
-  { id: 'solar_concentrators', name: 'Solar Concentrators', description: '+50% Power per click', cost: 500, purchased: false, type: 'click', multiplier: 1.5 },
-  { id: 'quantum_tap', name: 'Quantum Tap', description: 'Click gains 1% of Power/sec', cost: 5000, purchased: false, type: 'click', effect: 0.01 },
-  { id: 'efficiency_1', name: 'Efficiency I', description: '+25% output for Solar Array', cost: 100, purchased: false, type: 'generator', generatorId: 'solar_array', multiplier: 1.25 },
-  { id: 'efficiency_2', name: 'Efficiency II', description: '+50% output for Solar Array', cost: 500, purchased: false, type: 'generator', generatorId: 'solar_array', multiplier: 1.5 },
-  { id: 'efficiency_3', name: 'Efficiency III', description: '+100% output for Solar Array', cost: 2500, purchased: false, type: 'generator', generatorId: 'solar_array', multiplier: 2 },
-  { id: 'lunar_efficiency_1', name: 'Lunar Efficiency I', description: '+25% output for Lunar Collector', cost: 1000, purchased: false, type: 'generator', generatorId: 'lunar_collector', multiplier: 1.25 },
-  { id: 'fusion_efficiency_1', name: 'Fusion Efficiency I', description: '+25% output for Fusion Plant', cost: 10000, purchased: false, type: 'generator', generatorId: 'fusion_plant', multiplier: 1.25 },
-  { id: 'synergy', name: 'Synergy', description: 'Each generator type boosts others by 1%', cost: 50000, purchased: false, type: 'global', multiplier: 1.01 },
-];
+import { getDefaultGenerators, getDefaultUpgrades } from '../utils/configLoader';
 
 export const useGameStore = defineStore('game', () => {
   const power = ref(0);
   const totalPower = ref(0);
-  const generators = ref<Generator[]>(JSON.parse(JSON.stringify(DEFAULT_GENERATORS)));
-  const upgrades = ref<Upgrade[]>(JSON.parse(JSON.stringify(DEFAULT_UPGRADES)));
+  const generators = ref<Generator[]>(getDefaultGenerators());
+  const upgrades = ref<Upgrade[]>(getDefaultUpgrades());
   const lastSave = ref(Date.now());
   const loaded = ref(false);
 
+  function getUpgrade(id: string): Upgrade | undefined {
+    return upgrades.value.find(u => u.id === id);
+  }
+
+  function isUpgradePurchased(id: string): boolean {
+    const upgrade = getUpgrade(id);
+    return upgrade ? upgrade.purchased : false;
+  }
+
+  function getGeneratorMultipliers(generatorId: string): number[] {
+    return upgrades.value
+      .filter(u => u.type === 'generator' && u.generatorId === generatorId && u.purchased && u.multiplier)
+      .map(u => u.multiplier!);
+  }
+
+  function getAppliedGeneratorMultiplier(generatorId: string): number {
+    const multipliers = getGeneratorMultipliers(generatorId);
+    if (multipliers.length === 0) return 1;
+    return multipliers.reduce((acc, m) => acc * m, 1);
+  }
+
   const clickPower = computed(() => {
     let base = 1;
-    const focusedLens = upgrades.value.find(u => u.id === 'focused_lens' && u.purchased);
-    const solarConc = upgrades.value.find(u => u.id === 'solar_concentrators' && u.purchased);
-    
-    if (focusedLens) base += focusedLens.effect!;
-    if (solarConc) base *= solarConc.multiplier!;
-    
+
+    const focusedLens = getUpgrade('focused_lens');
+    if (focusedLens?.purchased && focusedLens.effect) base += focusedLens.effect;
+
+    const solarConc = getUpgrade('solar_concentrators');
+    if (solarConc?.purchased && solarConc.multiplier) base *= solarConc.multiplier;
+
     return base;
   });
 
+  const quantumTapBonus = computed(() => {
+    const quantumTap = getUpgrade('quantum_tap');
+    return (quantumTap?.purchased && quantumTap.effect) ? quantumTap.effect : 0;
+  });
+
+  const synergyActive = computed(() => isUpgradePurchased('synergy'));
+  const synergyMultiplier = computed(() => getUpgrade('synergy')?.multiplier ?? 1.01);
+
+  const offlineProgressActive = computed(() => isUpgradePurchased('offline_progress'));
+
   const powerPerSecond = computed(() => {
     let total = 0;
-    const activeGenerators = generators.value.filter(g => g.unlocked);
-    const synergy = upgrades.value.find(u => u.id === 'synergy' && u.purchased);
-    
+    const activeGenerators = generators.value.filter(g => g && g.unlocked);
+
     for (const generator of activeGenerators) {
-      let output = generator.baseOutput;
-      const efficiencyUpgrade = upgrades.value.find(
-        u => u.type === 'generator' && u.generatorId === generator.id && u.purchased
-      );
-      
-      if (efficiencyUpgrade) {
-        output *= efficiencyUpgrade.multiplier!;
-      }
-      
-      total += output * generator.owned;
+      if (!generator) continue;
+      const multiplier = getAppliedGeneratorMultiplier(generator.id);
+      const output = (generator.baseOutput || 0) * multiplier;
+      total += output * (generator.owned || 0);
     }
-    
-    if (synergy) {
-      const generatorCount = generators.value.filter(g => g.owned > 0).length;
-      total *= Math.pow(synergy.multiplier!, generatorCount);
+
+    if (synergyActive.value) {
+      const generatorCount = generators.value.filter(g => g && g.owned > 0).length;
+      total *= Math.pow(synergyMultiplier.value, generatorCount);
     }
-    
-    return total;
+
+    return isNaN(total) ? 0 : total;
   });
 
   function getGeneratorCost(generator: Generator): number {
-    return Math.floor(generator.baseCost * Math.pow(1.15, generator.owned));
+    if (!generator) return 0;
+    return Math.floor((generator.baseCost || 10) * Math.pow(1.15, generator.owned || 0));
   }
 
   function canAffordGenerator(generator: Generator): boolean {
+    if (!generator) return false;
     return power.value >= getGeneratorCost(generator);
   }
 
   function buyGenerator(id: string): boolean {
-    const generator = generators.value.find(g => g.id === id);
+    const generator = generators.value.find(g => g && g.id === id);
     if (!generator) return false;
-    
+
     const cost = getGeneratorCost(generator);
     if (power.value < cost) return false;
-    
+
     power.value -= cost;
-    generator.owned++;
-    
+    generator.owned = (generator.owned || 0) + 1;
+
     checkUnlocks();
     saveGame(gameState.value);
     return true;
   }
 
   function canAffordUpgrade(upgrade: Upgrade): boolean {
+    if (!upgrade) return false;
     return power.value >= upgrade.cost;
   }
 
   function buyUpgrade(id: string): boolean {
-    const upgrade = upgrades.value.find(u => u.id === id);
+    const upgrade = getUpgrade(id);
     if (!upgrade || upgrade.purchased) return false;
     if (power.value < upgrade.cost) return false;
-    
+
     power.value -= upgrade.cost;
     upgrade.purchased = true;
-    
+
     saveGame(gameState.value);
     return true;
   }
 
   function clickSun(): void {
     let gain = clickPower.value;
-    const quantumTap = upgrades.value.find(u => u.id === 'quantum_tap' && u.purchased);
-    
-    if (quantumTap) {
-      gain += powerPerSecond.value * quantumTap.effect!;
-    }
-    
+    gain += powerPerSecond.value * quantumTapBonus.value;
+
+    if (isNaN(gain) || !isFinite(gain)) gain = 0;
+
     power.value += gain;
     totalPower.value += gain;
   }
 
   function addPower(amount: number): void {
+    if (isNaN(amount) || !isFinite(amount)) return;
     power.value += amount;
     totalPower.value += amount;
   }
 
   function checkUnlocks(): void {
-    if (generators.value[2].owned > 0) generators.value[3].unlocked = true;
-    if (generators.value[3].owned > 0) generators.value[4].unlocked = true;
-    if (generators.value[4].owned > 0) generators.value[5].unlocked = true;
-    if (generators.value[5].owned > 0) generators.value[6].unlocked = true;
+    if (generators.value[2]?.owned && generators.value[2].owned > 0) generators.value[3].unlocked = true;
+    if (generators.value[3]?.owned && generators.value[3].owned > 0) generators.value[4].unlocked = true;
+    if (generators.value[4]?.owned && generators.value[4].owned > 0) generators.value[5].unlocked = true;
+    if (generators.value[5]?.owned && generators.value[5].owned > 0) generators.value[6].unlocked = true;
   }
 
   const gameState = computed<GameState>(() => ({
-    power: power.value,
-    totalPower: totalPower.value,
+    power: power.value || 0,
+    totalPower: totalPower.value || 0,
     generators: generators.value,
     upgrades: upgrades.value,
     lastSave: lastSave.value,
@@ -143,48 +149,48 @@ export const useGameStore = defineStore('game', () => {
 
   function initialize(): void {
     if (loaded.value) return;
-    
+
     const saveData = loadGame();
     if (saveData) {
-      power.value = saveData.power;
-      totalPower.value = saveData.totalPower;
-      lastSave.value = saveData.lastSave;
-      
-      for (const savedGen of saveData.generators) {
-        const existingGen = generators.value.find(g => g.id === savedGen.id);
-        if (existingGen) {
-          existingGen.owned = savedGen.owned;
-          existingGen.unlocked = savedGen.unlocked;
+      power.value = saveData.power || 0;
+      totalPower.value = saveData.totalPower || 0;
+      lastSave.value = saveData.lastSave || Date.now();
+
+      if (saveData.generators) {
+        for (const savedGen of saveData.generators) {
+          const existingGen = generators.value.find(g => g && g.id === savedGen.id);
+          if (existingGen) {
+            existingGen.owned = savedGen.owned || 0;
+            existingGen.unlocked = savedGen.unlocked || false;
+          }
         }
       }
-      
-      for (const savedUp of saveData.upgrades) {
-        const existingUp = upgrades.value.find(u => u.id === savedUp.id);
-        if (existingUp) {
-          existingUp.purchased = savedUp.purchased;
+
+      if (saveData.upgrades) {
+        for (const savedUp of saveData.upgrades) {
+          const existingUp = getUpgrade(savedUp.id);
+          if (existingUp) {
+            existingUp.purchased = savedUp.purchased || false;
+          }
         }
       }
-      
-      const offlineSeconds = (Date.now() - saveData.lastSave) / 1000;
-      const offlineProgress = upgrades.value.find(u => u.id === 'offline_progress');
-      
-      let offlineMultiplier = 0.5;
-      if (offlineProgress && offlineProgress.purchased) {
-        offlineMultiplier = 0.5;
-      }
-      
+
+      const offlineSeconds = (Date.now() - lastSave.value) / 1000;
+      const offlineMultiplier = offlineProgressActive.value ? 1.0 : 0.5;
+
       if (offlineSeconds > 0) {
-        const offlineGain = powerPerSecond.value * offlineSeconds * offlineMultiplier;
-        if (offlineGain > 0) {
+        const pps = powerPerSecond.value;
+        const offlineGain = pps * offlineSeconds * offlineMultiplier;
+        if (offlineGain > 0 && isFinite(offlineGain)) {
           power.value += offlineGain;
           totalPower.value += offlineGain;
         }
       }
     }
-    
+
     loaded.value = true;
     checkUnlocks();
-    
+
     setInterval(() => {
       saveGame(gameState.value);
       lastSave.value = Date.now();
@@ -195,10 +201,10 @@ export const useGameStore = defineStore('game', () => {
     power.value = 0;
     totalPower.value = 0;
     lastSave.value = Date.now();
-    
-    generators.value = JSON.parse(JSON.stringify(DEFAULT_GENERATORS));
-    upgrades.value = JSON.parse(JSON.stringify(DEFAULT_UPGRADES));
-    
+
+    generators.value = getDefaultGenerators();
+    upgrades.value = getDefaultUpgrades();
+
     localStorage.removeItem('solarGame');
   }
 
@@ -210,8 +216,10 @@ export const useGameStore = defineStore('game', () => {
     lastSave,
     loaded,
     clickPower,
+    quantumTapBonus,
     powerPerSecond,
     getGeneratorCost,
+    getAppliedGeneratorMultiplier,
     canAffordGenerator,
     buyGenerator,
     canAffordUpgrade,
