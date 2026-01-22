@@ -2,6 +2,8 @@
 
 A Vue 3 + TypeScript incremental/idle game where players harvest energy from the sun.
 
+This was a fully vibe-coded game. I'm experimenting with the strengths and weaknessess of letting AI fully build software. My goal is to not manually touch any code and build this fully through markdown files an "vibes".
+
 ## Features
 
 - Click the sun to harvest Power
